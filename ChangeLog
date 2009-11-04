@@ -2,6 +2,8 @@
 http://getmangos.com/community/showthread.php?t=10273
 A little bit more complicated patch, but currently every spell with aura 262 working :)
 
+*V5a - for rev. 8773, 4.11.2009
+  - Removed hardcoded packet from Player.cpp, finally 
 *V5 - for rev. 8773, 4.11.2009
  - Added Lynx3d's patch for triggering of FoF/Frostbite
  - Added remove movement imparing effects for Warbringer
