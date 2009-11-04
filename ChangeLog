@@ -1,0 +1,10 @@
+=== Aura 262 ===
+
+*V5 - 4.11.2009
+ - Added Lynx3d's patch for triggering of FoF/Frostbite
+ - Added remove movement imparing effects for Warbringer
+ - Added Sudden death "at least X rage left" from fullburned suggestion(Sorry, I cant add author name because getmangos.org is down)
+ - Removed hardcoded packet from SpellAuras.cpp, but in Player.cpp i still need it
+
+*V1 - V4b
+ - Sorry, I dont know exact changes :(  
