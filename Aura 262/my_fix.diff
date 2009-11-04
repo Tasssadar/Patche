@@ -1,8 +1,8 @@
 diff --git a/src/game/Player.cpp b/src/game/Player.cpp
-index 8f61a74..8d70604 100644
+index 8bacc46..c342471 100644
 --- a/src/game/Player.cpp
 +++ b/src/game/Player.cpp
-@@ -18401,6 +18401,25 @@ void Player::SendInitialPacketsAfterAddToMap()
+@@ -18291,6 +18291,25 @@ void Player::SendInitialPacketsAfterAddToMap()
      SendAurasForTarget(this);
      SendEnchantmentDurations();                             // must be after add to map
      SendItemDurations();                                    // must be after add to map
@@ -29,7 +29,7 @@ index 8f61a74..8d70604 100644
  
  void Player::SendUpdateToOutOfRangeGroupMembers()
 diff --git a/src/game/Spell.cpp b/src/game/Spell.cpp
-index d3e1c07..bd1d852 100644
+index 4be1945..140d446 100644
 --- a/src/game/Spell.cpp
 +++ b/src/game/Spell.cpp
 @@ -2966,6 +2966,42 @@ void Spell::finish(bool ok)
@@ -75,37 +75,35 @@ index d3e1c07..bd1d852 100644
  }
  
  void Spell::SendCastResult(SpellCastResult result)
-@@ -3852,7 +3888,7 @@ void Spell::CastPreCastSpells(Unit* target)
- SpellCastResult Spell::CheckCast(bool strict)
+@@ -3853,7 +3889,7 @@ SpellCastResult Spell::CheckCast(bool strict)
  {
-     // check cooldowns to prevent cheating
--    if(m_caster->GetTypeId()==TYPEID_PLAYER && ((Player*)m_caster)->HasSpellCooldown(m_spellInfo->Id))
-+       if(m_caster->GetTypeId()==TYPEID_PLAYER && ((Player*)m_caster)->HasSpellCooldown(m_spellInfo->Id) && !m_caster->isIgnoreUnitState(m_spellInfo))
+     // check cooldowns to prevent cheating (ignore passive spells, that client side visual only)
+     if (m_caster->GetTypeId()==TYPEID_PLAYER && !(m_spellInfo->Attributes & SPELL_ATTR_PASSIVE) &&
+-        ((Player*)m_caster)->HasSpellCooldown(m_spellInfo->Id))
++        ((Player*)m_caster)->HasSpellCooldown(m_spellInfo->Id) && !m_caster->isIgnoreUnitState(m_spellInfo))
      {
          if(m_triggeredByAuraSpell)
              return SPELL_FAILED_DONT_REPORT;
-@@ -3915,7 +3951,10 @@ SpellCastResult Spell::CheckCast(bool strict)
-         }
+@@ -3914,6 +3950,9 @@ SpellCastResult Spell::CheckCast(bool strict)
          else if(m_caster->HasAura(m_spellInfo->excludeCasterAuraSpell))
              return SPELL_FAILED_CASTER_AURASTATE;
--    }
-+     }
-+     //chcek caster for combat
+     }
++     //check caster for combat
 +     if(!m_caster->isIgnoreUnitState(m_spellInfo) && m_caster->isInCombat() && IsNonCombatSpell(m_spellInfo))
 +        return SPELL_FAILED_AFFECTING_COMBAT;
  
      // cancel autorepeat spells if cast start when moving
      // (not wand currently autorepeat cast delayed to moving stop anyway in spell update code)
-@@ -3955,7 +3994,7 @@ SpellCastResult Spell::CheckCast(bool strict)
+@@ -3956,7 +3995,7 @@ SpellCastResult Spell::CheckCast(bool strict)
          if(non_caster_target)
          {
              // target state requirements (apply to non-self only), to allow cast affects to self like Dirty Deeds
 -            if(m_spellInfo->TargetAuraState && !target->HasAuraStateForCaster(AuraState(m_spellInfo->TargetAuraState),m_caster->GetGUID()))
-+            if(!m_caster->isIgnoreUnitState(m_spellInfo) && m_spellInfo->TargetAuraState && !target->HasAuraStateForCaster(AuraState(m_spellInfo->TargetAuraState),m_caster->GetGUID()))
++            if(m_spellInfo->TargetAuraState && !target->HasAuraStateForCaster(AuraState(m_spellInfo->TargetAuraState),m_caster->GetGUID()) && !m_caster->isIgnoreUnitState(m_spellInfo))
                  return SPELL_FAILED_TARGET_AURASTATE;
  
              // Not allow casting on flying player
-@@ -4281,7 +4320,7 @@ SpellCastResult Spell::CheckCast(bool strict)
+@@ -4287,7 +4326,7 @@ SpellCastResult Spell::CheckCast(bool strict)
              {
                  if(m_spellInfo->SpellIconID == 1648)        // Execute
                  {
@@ -128,7 +126,7 @@ index 3ccdb1e..57e8186 100644
      SPELL_AURA_264 = 264,
      SPELL_AURA_265 = 265,
 diff --git a/src/game/SpellAuras.cpp b/src/game/SpellAuras.cpp
-index 8015555..1971aab 100644
+index 8af7235..5257fe2 100644
 --- a/src/game/SpellAuras.cpp
 +++ b/src/game/SpellAuras.cpp
 @@ -312,7 +312,7 @@ pAuraHandler AuraHandler[TOTAL_AURAS]=
@@ -136,11 +134,11 @@ index 8015555..1971aab 100644
      &Aura::HandleNoImmediateEffect,                         //260 SPELL_AURA_SCREEN_EFFECT (miscvalue = id in ScreenEffect.dbc) not required any code
      &Aura::HandlePhase,                                     //261 SPELL_AURA_PHASE undetectable invisibility?     implemented in Unit::isVisibleForOrDetect
 -    &Aura::HandleNULL,                                      //262 ignore combat/aura state?
-+    &Aura::HandleIgnoreUnitState,                           //262 SPELL_AURA_IGNORE_UNIT_STATE Alows some abilities whitch are aviable only in some cases.... implented in Unit::isAbilityAlowed & Spell::CheckCast
++    &Aura::HandleIgnoreUnitState,                           //262 SPELL_AURA_IGNORE_UNIT_STATE Alows some abilities whitch are aviable only in some cases.... implented in Unit::isIgnoreUnitState & Spell::CheckCast, too
      &Aura::HandleNULL,                                      //263 SPELL_AURA_ALLOW_ONLY_ABILITY player can use only abilities set in SpellClassMask
      &Aura::HandleUnused,                                    //264 unused (3.0.8a-3.2.2a)
      &Aura::HandleUnused,                                    //265 unused (3.0.8a-3.2.2a)
-@@ -7348,6 +7348,40 @@ void Aura::HandlePhase(bool apply, bool Real)
+@@ -7384,6 +7384,40 @@ void Aura::HandlePhase(bool apply, bool Real)
          m_target->SetVisibility(m_target->GetVisibility());
  }
  
@@ -194,25 +192,63 @@ index 0695271..a066395 100644
          void HandleAuraModAllCritChance(bool Apply, bool Real);
  
 diff --git a/src/game/SpellEffects.cpp b/src/game/SpellEffects.cpp
-index f81f944..31ca4bc 100644
+index c25d394..50d776d 100644
 --- a/src/game/SpellEffects.cpp
 +++ b/src/game/SpellEffects.cpp
-@@ -1316,6 +1316,10 @@ void Spell::EffectDummy(uint32 i)
+@@ -1374,6 +1374,14 @@ void Spell::EffectDummy(uint32 i)
              {
                  int32 chargeBasePoints0 = damage;
                  m_caster->CastCustomSpell(m_caster, 34846, &chargeBasePoints0, NULL, NULL, true);
 +
 +                //Juggernaut crit bonus
 +                if(m_caster->HasAura(64976, 0))
-+                    m_caster->CastSpell(m_caster, 65156, true);                                        
++                    m_caster->CastSpell(m_caster, 65156, true);        
++
++                //Warbringer - remove movement imparing effects
++                if(m_caster->HasAura(57499))
++                    m_caster->RemoveAurasAtMechanicImmunity(IMMUNE_TO_ROOT_AND_SNARE_MASK,0,true);
                  return;
              }
              // Execute
 diff --git a/src/game/Unit.cpp b/src/game/Unit.cpp
-index f6c9dc4..03af452 100644
+index ac5f15d..98833c8 100644
 --- a/src/game/Unit.cpp
 +++ b/src/game/Unit.cpp
-@@ -8311,7 +8311,7 @@ uint32 Unit::SpellDamageBonus(Unit *pVictim, SpellEntry const *spellProto, uint3
+@@ -7240,6 +7240,33 @@ bool Unit::HandleProcTriggerSpell(Unit *pVictim, uint32 damage, Aura* triggeredB
+             basepoints[0] = int32(GetTotalAttackPowerValue(BASE_ATTACK) * triggerAmount / 100);
+             break;
+         }
++        //Fingers of Frost
++        case 44544:
++        {
++            if(HasAura(11071) || HasAura(12496) || HasAura(12497))
++            {
++                uint32 chance = 100;
++                switch(auraSpellInfo->Id)
++                {
++                    case 44543:            //FoF rank 1
++                        if(HasAura(11071))   //Frostbite rank 1
++                            chance -= 71;
++                        if(HasAura(12496) || HasAura(12497)) //Frostbite rank 2 & 3
++                            chance -= 100;
++                        break;
++                    case 44545:              //FoF rank 2
++                        if(HasAura(11071))   //Frostbite rank 1
++                            chance -= 25;
++                        if(HasAura(12496))   //Frostbite rank 2
++                            chance -= 75;
++                        if(HasAura(12497))   //Frostbite rank 3
++                            chance -= 100;
++                        break;
++                }
++                if (!roll_chance_f(chance) && pVictim && pVictim->isAlive())
++                    CastSpell(pVictim, 12494, true);  //Cast Frostbite Effect on target...
++            }
++        }
+     }
+ 
+     if( cooldown && GetTypeId()==TYPEID_PLAYER && ((Player*)this)->HasSpellCooldown(trigger_spell_id))
+@@ -8321,7 +8348,7 @@ uint32 Unit::SpellDamageBonus(Unit *pVictim, SpellEntry const *spellProto, uint3
              // Ice Lance
              if (spellProto->SpellIconID == 186)
              {
@@ -221,7 +257,7 @@ index f6c9dc4..03af452 100644
                  {
                      float multiplier = 3.0f;
  
-@@ -8613,9 +8613,9 @@ bool Unit::isSpellCrit(Unit *pVictim, SpellEntry const *spellProto, SpellSchoolM
+@@ -8632,9 +8659,9 @@ bool Unit::isSpellCrit(Unit *pVictim, SpellEntry const *spellProto, SpellSchoolM
                          continue;
                      switch((*i)->GetModifier()->m_miscvalue)
                      {
@@ -234,9 +270,9 @@ index f6c9dc4..03af452 100644
                          case 7917:                          // Glyph of Shadowburn
                              if (pVictim->HasAuraState(AURA_STATE_HEALTHLESS_35_PERCENT))
                                  crit_chance+=(*i)->GetModifier()->m_amount;
-@@ -12595,3 +12595,27 @@ void Unit::KnockBackFrom(Unit* target, float horizintalSpeed, float verticalSpee
-         NearTeleportTo(fx, fy, fz, GetOrientation(), this == target);
-     }
+@@ -12651,3 +12678,27 @@ uint32 Unit::GetCombatRatingDamageReduction(CombatRating cr, float rate, float c
+         percent = cap;
+     return uint32 (percent * damage / 100.0f);
  }
 +bool Unit::isIgnoreUnitState(SpellEntry const *spell)
 +{
@@ -263,10 +299,10 @@ index f6c9dc4..03af452 100644
 +    return false;
 +}
 diff --git a/src/game/Unit.h b/src/game/Unit.h
-index 48d53db..62a20ff 100644
+index b481c37..3aad17a 100644
 --- a/src/game/Unit.h
 +++ b/src/game/Unit.h
-@@ -1098,6 +1098,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
+@@ -1120,6 +1120,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
          bool IsPolymorphed() const;
  
          bool isFrozen() const;
