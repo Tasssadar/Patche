@@ -1,12 +1,12 @@
 diff --git a/src/game/Player.cpp b/src/game/Player.cpp
-index 8bacc46..c342471 100644
+index bdf6b53..6ef36d3 100644
 --- a/src/game/Player.cpp
 +++ b/src/game/Player.cpp
-@@ -18291,6 +18291,25 @@ void Player::SendInitialPacketsAfterAddToMap()
+@@ -18306,6 +18306,25 @@ void Player::SendInitialPacketsAfterAddToMap()
      SendAurasForTarget(this);
      SendEnchantmentDurations();                             // must be after add to map
      SendItemDurations();                                    // must be after add to map
-+    
++
 +    // Juggernaut & Warbringer both need special packet
 +    // for alowing charge in combat and Warbringer
 +    // for alowing charge in different stances, too
@@ -126,7 +126,7 @@ index 3ccdb1e..57e8186 100644
      SPELL_AURA_264 = 264,
      SPELL_AURA_265 = 265,
 diff --git a/src/game/SpellAuras.cpp b/src/game/SpellAuras.cpp
-index 8af7235..80661b5 100644
+index 8af7235..beeb800 100644
 --- a/src/game/SpellAuras.cpp
 +++ b/src/game/SpellAuras.cpp
 @@ -312,7 +312,7 @@ pAuraHandler AuraHandler[TOTAL_AURAS]=
@@ -138,7 +138,7 @@ index 8af7235..80661b5 100644
      &Aura::HandleNULL,                                      //263 SPELL_AURA_ALLOW_ONLY_ABILITY player can use only abilities set in SpellClassMask
      &Aura::HandleUnused,                                    //264 unused (3.0.8a-3.2.2a)
      &Aura::HandleUnused,                                    //265 unused (3.0.8a-3.2.2a)
-@@ -7384,6 +7384,40 @@ void Aura::HandlePhase(bool apply, bool Real)
+@@ -7384,6 +7384,34 @@ void Aura::HandlePhase(bool apply, bool Real)
          m_target->SetVisibility(m_target->GetVisibility());
  }
  
@@ -162,15 +162,9 @@ index 8af7235..80661b5 100644
 +                // for alowing charge in different stances, too
 +                case 64976:
 +                case 57499:
-+                    WorldPacket data(SMSG_AURA_UPDATE);
-+                    data.append(caster->GetPackGUID());
-+                    data << uint8(255);
-+                    data << uint32(GetId());
-+                    data << uint8(19);
-+                    data << uint8(caster->getLevel());
-+                    data << uint8(1);
-+                    data << uint8(0);
-+                    caster->SendMessageToSet(&data, true);
++                    SetAuraSlot(255);
++                    SetAuraFlags(19);
++                    SendAuraUpdate(false);
 +                    break;
 +            }
 +        }
@@ -192,10 +186,10 @@ index 0695271..a066395 100644
          void HandleAuraModAllCritChance(bool Apply, bool Real);
  
 diff --git a/src/game/SpellEffects.cpp b/src/game/SpellEffects.cpp
-index c25d394..780ba97 100644
+index c25d394..51823bb 100644
 --- a/src/game/SpellEffects.cpp
 +++ b/src/game/SpellEffects.cpp
-@@ -1374,6 +1374,14 @@ void Spell::EffectDummy(uint32 i)
+@@ -1374,6 +1374,10 @@ void Spell::EffectDummy(uint32 i)
              {
                  int32 chargeBasePoints0 = damage;
                  m_caster->CastCustomSpell(m_caster, 34846, &chargeBasePoints0, NULL, NULL, true);
@@ -203,15 +197,56 @@ index c25d394..780ba97 100644
 +                //Juggernaut crit bonus
 +                if(m_caster->HasAura(64976, 0))
 +                    m_caster->CastSpell(m_caster, 65156, true);                                        
-+
-+                //Warbringer - remove movement imparing effects
-+                if(m_caster->HasAura(57499))
-+                    m_caster->RemoveAurasAtMechanicImmunity(IMMUNE_TO_ROOT_AND_SNARE_MASK,0,true);
                  return;
              }
              // Execute
+@@ -1382,7 +1386,19 @@ void Spell::EffectDummy(uint32 i)
+                 if(!unitTarget)
+                     return;
+ 
++
+                 uint32 rage = m_caster->GetPower(POWER_RAGE);
++                            uint32 rage2 = rage;
++                            uint32 lastrage=0;
++                            //Sudden Death
++                            if(m_caster->HasAura(52437))
++                            {
++                                   if(m_caster->HasAura(29723)) lastrage=30;
++                                   else if (m_caster->HasAura(29725)) lastrage=70;
++                                   else if (m_caster->HasAura(29724)) lastrage=100;
++                                   rage2 = rage2 - 300;
++                                   rage2 = rage2<lastrage?lastrage:rage2;
++                            }
+                 // Glyph of Execution bonus
+                 if (Aura *aura = m_caster->GetDummyAura(58367))
+                     rage+=aura->GetModifier()->m_amount;
+@@ -1390,7 +1406,11 @@ void Spell::EffectDummy(uint32 i)
+                 int32 basePoints0 = damage+int32(rage * m_spellInfo->DmgMultiplier[i] +
+                                                  m_caster->GetTotalAttackPowerValue(BASE_ATTACK)*0.2f);
+                 m_caster->CastCustomSpell(unitTarget, 20647, &basePoints0, NULL, NULL, true, 0);
+-                m_caster->SetPower(POWER_RAGE, 0);
++                //Sudden Death
++                            if (lastrage != 0)
++                                   m_caster->SetPower(POWER_RAGE,rage2);
++                            else
++                                   m_caster->SetPower(POWER_RAGE,0);
+                 return;
+             }
+             // Slam
+@@ -6243,6 +6263,11 @@ void Spell::EffectCharge(uint32 /*i*/)
+     // not all charge effects used in negative spells
+     if (unitTarget != m_caster && !IsPositiveSpell(m_spellInfo->Id))
+         m_caster->Attack(unitTarget,true);
++
++    //Warbringer - remove movement imparing effects
++    if(m_caster->HasAura(57499))
++        m_caster->RemoveAurasAtMechanicImmunity(IMMUNE_TO_ROOT_AND_SNARE_MASK,57499,true);
++
+ }
+ 
+ void Spell::EffectCharge2(uint32 /*i*/)
 diff --git a/src/game/Unit.cpp b/src/game/Unit.cpp
-index ac5f15d..255b564 100644
+index b475706..26ed336 100644
 --- a/src/game/Unit.cpp
 +++ b/src/game/Unit.cpp
 @@ -8321,7 +8321,7 @@ uint32 Unit::SpellDamageBonus(Unit *pVictim, SpellEntry const *spellProto, uint3
@@ -236,7 +271,49 @@ index ac5f15d..255b564 100644
                          case 7917:                          // Glyph of Shadowburn
                              if (pVictim->HasAuraState(AURA_STATE_HEALTHLESS_35_PERCENT))
                                  crit_chance+=(*i)->GetModifier()->m_amount;
-@@ -12651,3 +12651,27 @@ uint32 Unit::GetCombatRatingDamageReduction(CombatRating cr, float rate, float c
+@@ -10493,6 +10493,17 @@ int32 Unit::CalculateSpellDamage(SpellEntry const* spellProto, uint8 effect_inde
+             (spellProto->Effect[effect_index] != SPELL_EFFECT_APPLY_AURA || spellProto->EffectApplyAuraName[effect_index] != SPELL_AURA_MOD_DECREASE_SPEED))
+         value = int32(value*0.25f*exp(getLevel()*(70-spellProto->spellLevel)/1000.0f));
+ 
++    // Frostbite trigger aura: if Fingers of Frost is active, it has saved a roll:
++    if(spellProto->EffectTriggerSpell[effect_index] == 12494)
++    {
++        sLog.outDebug("CalculateSpellDamage: called for 12494 (Frostbite), chance is: %u", value);
++        if(m_lastAuraProcRoll >=0) //override independent trigger
++        {
++            sLog.outDebug("CalculateSpellDamage: saved roll from FoF is: %f", m_lastAuraProcRoll);
++            return value > m_lastAuraProcRoll ? 100 : 0;
++        }
++        sLog.outDebug("CalculateSpellDamage: no  saved roll for 12494 (Frostbite)");
++    }
+     return value;
+ }
+ 
+@@ -11503,6 +11514,9 @@ void Unit::ProcDamageAndSpellFor( bool isVictim, Unit * pTarget, uint32 procFlag
+ 
+     RemoveSpellList removedSpells;
+     ProcTriggeredList procTriggered;
++    // reset saved roll from Fingers of Frost:
++    if(GetTypeId() == TYPEID_PLAYER)
++        m_lastAuraProcRoll = -1.0f;
+     // Fill procTriggered list
+     for(AuraMap::const_iterator itr = GetAuras().begin(); itr!= GetAuras().end(); ++itr)
+     {
+@@ -12438,6 +12452,13 @@ bool Unit::IsTriggeredAtSpellProcEvent(Unit *pVictim, Aura* aura, SpellEntry con
+         modOwner->ApplySpellMod(spellProto->Id,SPELLMOD_CHANCE_OF_SUCCESS,chance);
+         modOwner->ApplySpellMod(spellProto->Id,SPELLMOD_FREQUENCY_OF_SUCCESS,chance);
+     }
++    // Fingers of Frost: save roll for re-use in Frostbite trigger
++    if(aura->GetSpellProto()->EffectTriggerSpell[aura->GetEffIndex()] == 44544)
++    {
++        sLog.outDebug("Fingers of Frost: saving roll; triggered by %u", aura->GetId());
++       m_lastAuraProcRoll = rand_chance();
++       return chance > m_lastAuraProcRoll;
++    }
+ 
+     return roll_chance_f(chance);
+ }
+@@ -12655,3 +12676,27 @@ uint32 Unit::GetCombatRatingDamageReduction(CombatRating cr, float rate, float c
          percent = cap;
      return uint32 (percent * damage / 100.0f);
  }
@@ -265,7 +342,7 @@ index ac5f15d..255b564 100644
 +    return false;
 +}
 diff --git a/src/game/Unit.h b/src/game/Unit.h
-index b481c37..3aad17a 100644
+index b481c37..da05b59 100644
 --- a/src/game/Unit.h
 +++ b/src/game/Unit.h
 @@ -1120,6 +1120,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
@@ -276,3 +353,11 @@ index b481c37..3aad17a 100644
  
          void RemoveSpellbyDamageTaken(AuraType auraType, uint32 damage);
  
+@@ -1588,6 +1589,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
+         uint32 m_reactiveTimer[MAX_REACTIVE];
+         uint32 m_regenTimer;
+         uint32 m_lastManaUseTimer;
++        float m_lastAuraProcRoll;
+ 
+     private:
+         bool IsTriggeredAtSpellProcEvent(Unit *pVictim, Aura* aura, SpellEntry const* procSpell, uint32 procFlag, uint32 procExtra, WeaponAttackType attType, bool isVictim, bool active, SpellProcEventEntry const*& spellProcEvent );
