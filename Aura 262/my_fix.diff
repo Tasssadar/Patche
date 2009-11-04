@@ -1,18 +1,153 @@
-diff --git a/src/game/GridNotifiers.h b/src/game/GridNotifiers.h
-index 92c42ce..06077b1 100644
---- a/src/game/GridNotifiers.h
-+++ b/src/game/GridNotifiers.h
- -719,7 +719,7 @@ namespace MaNGOS
-             bool operator()(Unit* u)
+diff --git a/src/game/Spell.cpp b/src/game/Spell.cpp
+index 435f7d2..6b5ab7a 100644
+--- a/src/game/Spell.cpp
++++ b/src/game/Spell.cpp
+ -3894,8 +3894,8 @@ void Spell::CastPreCastSpells(Unit* target)
+ 
+ SpellCastResult Spell::CheckCast(bool strict)
+ {
+-    // check cooldowns to prevent cheating
+-    if(m_caster->GetTypeId()==TYPEID_PLAYER && ((Player*)m_caster)->HasSpellCooldown(m_spellInfo->Id))
++       // check cooldowns to prevent cheating
++       if(m_caster->GetTypeId()==TYPEID_PLAYER && ((Player*)m_caster)->HasSpellCooldown(m_spellInfo->Id) && !m_caster->isIgnoreUnitState(m_spellInfo))
+     {
+         if(m_triggeredByAuraSpell)
+             return SPELL_FAILED_DONT_REPORT;
+ -3938,27 +3938,35 @@ SpellCastResult Spell::CheckCast(bool strict)
+         }
+     }
+ 
+-    // caster state requirements
+-    if(m_spellInfo->CasterAuraState && !m_caster->HasAuraState(AuraState(m_spellInfo->CasterAuraState)))
+-        return SPELL_FAILED_CASTER_AURASTATE;
+-    if(m_spellInfo->CasterAuraStateNot && m_caster->HasAuraState(AuraState(m_spellInfo->CasterAuraStateNot)))
+-        return SPELL_FAILED_CASTER_AURASTATE;
+-
+-    // Caster aura req check if need
+-    if(m_spellInfo->casterAuraSpell && !m_caster->HasAura(m_spellInfo->casterAuraSpell))
+-        return SPELL_FAILED_CASTER_AURASTATE;
+-    if(m_spellInfo->excludeCasterAuraSpell)
+-    {
+-        // Special cases of non existing auras handling
+-        if(m_spellInfo->excludeCasterAuraSpell == 61988)
+-        {
+-            // Avenging Wrath Marker
+-            if(m_caster->HasAura(61987))
+-                return SPELL_FAILED_CASTER_AURASTATE;
+-        }
+-        else if(m_caster->HasAura(m_spellInfo->excludeCasterAuraSpell))
+-            return SPELL_FAILED_CASTER_AURASTATE;
+-    }
++       
++       
++       if (!m_caster->isIgnoreUnitState(m_spellInfo))
++       {
++              // caster state requirements
++              if(m_spellInfo->CasterAuraState && !m_caster->HasAuraState(AuraState(m_spellInfo->CasterAuraState)))
++                     return SPELL_FAILED_CASTER_AURASTATE;
++              if(m_spellInfo->CasterAuraStateNot && m_caster->HasAuraState(AuraState(m_spellInfo->CasterAuraStateNot)))
++                     return SPELL_FAILED_CASTER_AURASTATE;
++
++              // Caster aura req check if need
++              if(m_spellInfo->casterAuraSpell && !m_caster->HasAura(m_spellInfo->casterAuraSpell))
++                     return SPELL_FAILED_CASTER_AURASTATE;
++              if(m_spellInfo->excludeCasterAuraSpell)
++              {
++                     // Special cases of non existing auras handling
++                     if(m_spellInfo->excludeCasterAuraSpell == 61988)
++                     {
++                            // Avenging Wrath Marker
++                            if(m_caster->HasAura(61987))
++                                   return SPELL_FAILED_CASTER_AURASTATE;
++                            }
++                            else if(m_caster->HasAura(m_spellInfo->excludeCasterAuraSpell))
++                                   return SPELL_FAILED_CASTER_AURASTATE;
++              }
++
++              if(m_caster->isInCombat() && IsNonCombatSpell(m_spellInfo))
++                          return SPELL_FAILED_AFFECTING_COMBAT;
++       }
+ 
+     // cancel autorepeat spells if cast start when moving
+     // (not wand currently autorepeat cast delayed to moving stop anyway in spell update code)
+ -3972,33 +3980,36 @@ SpellCastResult Spell::CheckCast(bool strict)
+ 
+     if(Unit *target = m_targets.getUnitTarget())
+     {
+-        // target state requirements (not allowed state), apply to self also
+-        if(m_spellInfo->TargetAuraStateNot && target->HasAuraState(AuraState(m_spellInfo->TargetAuraStateNot)))
+-            return SPELL_FAILED_TARGET_AURASTATE;
+-
+-        // Target aura req check if need
+-        if(m_spellInfo->targetAuraSpell && !target->HasAura(m_spellInfo->targetAuraSpell))
+-            return SPELL_FAILED_CASTER_AURASTATE;
+-        if(m_spellInfo->excludeTargetAuraSpell)
+-        {
+-            // Special cases of non existing auras handling
+-            if (m_spellInfo->excludeTargetAuraSpell == 61988)
+-            {
+-                // Avenging Wrath Marker
+-                if (target->HasAura(61987))
+-                    return SPELL_FAILED_CASTER_AURASTATE;
+-
+-            }
+-            else if (target->HasAura(m_spellInfo->excludeTargetAuraSpell))
+-                return SPELL_FAILED_CASTER_AURASTATE;
+-        }
++              if (!m_caster->isIgnoreUnitState(m_spellInfo))
++              {
++                     // target state requirements (not allowed state), apply to self also
++                     if(m_spellInfo->TargetAuraStateNot && target->HasAuraState(AuraState(m_spellInfo->TargetAuraStateNot)))
++                            return SPELL_FAILED_TARGET_AURASTATE;
++
++                     // Target aura req check if need
++                     if(m_spellInfo->targetAuraSpell && !target->HasAura(m_spellInfo->targetAuraSpell))
++                            return SPELL_FAILED_CASTER_AURASTATE;
++                     if(m_spellInfo->excludeTargetAuraSpell)
++                     {
++                            // Special cases of non existing auras handling
++                            if (m_spellInfo->excludeTargetAuraSpell == 61988)
++                            {
++                                   // Avenging Wrath Marker
++                                   if (target->HasAura(61987))
++                                          return SPELL_FAILED_CASTER_AURASTATE;
++
++                            }
++                            else if (target->HasAura(m_spellInfo->excludeTargetAuraSpell))
++                                   return SPELL_FAILED_CASTER_AURASTATE;
++                     }
++              }
+ 
+         bool non_caster_target = target != m_caster && !IsSpellWithCasterSourceTargetsOnly(m_spellInfo);
+ 
+         if(non_caster_target)
+         {
+             // target state requirements (apply to non-self only), to allow cast affects to self like Dirty Deeds
+-            if(m_spellInfo->TargetAuraState && !target->HasAuraStateForCaster(AuraState(m_spellInfo->TargetAuraState),m_caster->GetGUID()))
++            if(!m_caster->isIgnoreUnitState(m_spellInfo) && m_spellInfo->TargetAuraState && !target->HasAuraStateForCaster(AuraState(m_spellInfo->TargetAuraState),m_caster->GetGUID()))
+                 return SPELL_FAILED_TARGET_AURASTATE;
+ 
+             // Not allow casting on flying player
+ -4128,7 +4139,7 @@ SpellCastResult Spell::CheckCast(bool strict)
+         }
+ 
+         // check if target is in combat
+-        if (non_caster_target && (m_spellInfo->AttributesEx & SPELL_ATTR_EX_NOT_IN_COMBAT_TARGET) && target->isInCombat())
++              if (non_caster_target && (m_spellInfo->AttributesEx & SPELL_ATTR_EX_NOT_IN_COMBAT_TARGET) && target->isInCombat() && !m_caster->isIgnoreUnitState(m_spellInfo))
+             return SPELL_FAILED_TARGET_AFFECTING_COMBAT;
+     }
+     // zone check
+ -4323,7 +4334,7 @@ SpellCastResult Spell::CheckCast(bool strict)
              {
-                 if(u->isAlive() && u->isInCombat() && !i_obj->IsHostileTo(u) && i_obj->IsWithinDistInMap(u, i_range) &&
--                    (u->isFeared() || u->isCharmed() || u->isFrozen() || u->hasUnitState(UNIT_STAT_STUNNED) || u->hasUnitState(UNIT_STAT_CONFUSED)))
-+                    (u->isFeared() || u->isCharmed() || u->isFrozen(u) || u->hasUnitState(UNIT_STAT_STUNNED) || u->hasUnitState(UNIT_STAT_CONFUSED)))
+                 if(m_spellInfo->SpellIconID == 1648)        // Execute
                  {
-                     return true;
+-                    if(!m_targets.getUnitTarget() || m_targets.getUnitTarget()->GetHealth() > m_targets.getUnitTarget()->GetMaxHealth()*0.2)
++                    if(!m_targets.getUnitTarget() || m_targets.getUnitTarget()->GetHealth() > m_targets.getUnitTarget()->GetMaxHealth()*0.2 && !m_caster->isIgnoreUnitState(m_spellInfo))
+                         return SPELL_FAILED_BAD_TARGETS;
                  }
+                 else if (m_spellInfo->Id == 51582)          // Rocket Boots Engaged
 diff --git a/src/game/SpellAuraDefines.h b/src/game/SpellAuraDefines.h
-index 602a305..92369dd 100644
+index 10b4fd3..6f28fd7 100644
 --- a/src/game/SpellAuraDefines.h
 +++ b/src/game/SpellAuraDefines.h
  -304,7 +304,7 @@ enum AuraType
@@ -20,72 +155,119 @@ index 602a305..92369dd 100644
      SPELL_AURA_SCREEN_EFFECT = 260,
      SPELL_AURA_PHASE = 261,
 -    SPELL_AURA_262 = 262,
-+    SPELL_AURA_FINGERS_OF_FROST = 262,
++    SPELL_AURA_IGNORE_UNIT_STATE = 262,
      SPELL_AURA_ALLOW_ONLY_ABILITY = 263,
      SPELL_AURA_264 = 264,
      SPELL_AURA_265 = 265,
 diff --git a/src/game/SpellAuras.cpp b/src/game/SpellAuras.cpp
-index bbcb5f0..d2ab969 100644
+index 6948cbd..0a1a6fc 100644
 --- a/src/game/SpellAuras.cpp
 +++ b/src/game/SpellAuras.cpp
- -312,7 +312,7 @@ pAuraHandler AuraHandler[TOTAL_AURAS]=
+ -311,8 +311,8 @@ pAuraHandler AuraHandler[TOTAL_AURAS]=
+     &Aura::HandleNULL,                                      //258 SPELL_AURA_MOD_SPELL_VISUAL
      &Aura::HandleNULL,                                      //259 corrupt healing over time spell
      &Aura::HandleNoImmediateEffect,                         //260 SPELL_AURA_SCREEN_EFFECT (miscvalue = id in ScreenEffect.dbc) not required any code
-     &Aura::HandlePhase,                                     //261 SPELL_AURA_PHASE undetactable invisibility?     implemented in Unit::isVisibleForOrDetect
--    &Aura::HandleNULL,                                      //262
-+    &Aura::HandleNoImmediateEffect,                         //262 SPELL_AURA_FINGERS_OF_FROST implented in Unit:isFrozen(), only one spell - Fingers of Frost
+-    &Aura::HandlePhase,                                     //261 SPELL_AURA_PHASE undetectable invisibility?     implemented in Unit::isVisibleForOrDetect
+-    &Aura::HandleNULL,                                      //262 ignore combat/aura state?
++    &Aura::HandlePhase,                                     //261 SPELL_AURA_PHASE undetactable invisibility?     implemented in Unit::isVisibleForOrDetect
++    &Aura::HandleNoImmediateEffect,                         //262 SPELL_AURA_IGNORE_UNIT_STATE Alows some abilities whitch are aviable only in some cases.... implented in Unit::isAbilityAlowed & Spell::CheckCast
      &Aura::HandleNULL,                                      //263 SPELL_AURA_ALLOW_ONLY_ABILITY player can use only abilities set in SpellClassMask
      &Aura::HandleUnused,                                    //264 unused (3.0.8a)
      &Aura::HandleUnused,                                    //265 unused (3.0.8a)
+ -7361,7 +7361,6 @@ void Aura::HandlePhase(bool apply, bool Real)
+     if(m_target->GetVisibility() != VISIBILITY_OFF)
+         m_target->SetVisibility(m_target->GetVisibility());
+ }
+-
+ void Aura::UnregisterSingleCastAura()
+ {
+     if (IsSingleTarget())
+diff --git a/src/game/SpellAuras.h b/src/game/SpellAuras.h
+index 3973382..63671d0 100644
+--- a/src/game/SpellAuras.h
++++ b/src/game/SpellAuras.h
+ -211,7 +211,7 @@ class MANGOS_DLL_SPEC Aura
+         void HandleAuraIncreaseBaseHealthPercent(bool Apply, bool Real);
+         void HandleNoReagentUseAura(bool Apply, bool Real);
+         void HandlePhase(bool Apply, bool Real);
+-        void HandleModTargetArmorPct(bool Apply, bool Real);
++              void HandleModTargetArmorPct(bool Apply, bool Real);
+         void HandleAuraModAllCritChance(bool Apply, bool Real);
+ 
+         virtual ~Aura();
 diff --git a/src/game/Unit.cpp b/src/game/Unit.cpp
-index 74e8e82..dc30fc2 100644
+index 3b19f33..32abfef 100644
 --- a/src/game/Unit.cpp
 +++ b/src/game/Unit.cpp
- -8250,7 +8250,7 @@ uint32 Unit::SpellDamageBonus(Unit *pVictim, SpellEntry const *spellProto, uint3
+ -2699,6 +2699,7 @@ SpellMissInfo Unit::SpellHitResult(Unit *pVictim, SpellEntry const *spell, bool
+         case SPELL_DAMAGE_CLASS_MAGIC:
+             return MagicSpellHitResult(pVictim, spell);
+     }
++       
+     return SPELL_MISS_NONE;
+ }
+ 
+ -8248,7 +8249,7 @@ uint32 Unit::SpellDamageBonus(Unit *pVictim, SpellEntry const *spellProto, uint3
              // Ice Lance
              if (spellProto->SpellIconID == 186)
              {
 -                if (pVictim->isFrozen())
-+                if (isFrozen(pVictim))
++                if (pVictim->isFrozen() || isIgnoreUnitState(spellProto))
                  {
                      float multiplier = 3.0f;
  
- -8527,9 +8527,9 @@ bool Unit::isSpellCrit(Unit *pVictim, SpellEntry const *spellProto, SpellSchoolM
+ -8557,9 +8558,9 @@ bool Unit::isSpellCrit(Unit *pVictim, SpellEntry const *spellProto, SpellSchoolM
                          continue;
                      switch((*i)->GetModifier()->m_miscvalue)
                      {
 -                        case  849: if (pVictim->isFrozen()) crit_chance+= 17.0f; break; //Shatter Rank 1
 -                        case  910: if (pVictim->isFrozen()) crit_chance+= 34.0f; break; //Shatter Rank 2
 -                        case  911: if (pVictim->isFrozen()) crit_chance+= 50.0f; break; //Shatter Rank 3
-+                        case  849: if (isFrozen(pVictim)) crit_chance+= 17.0f; break; //Shatter Rank 1
-+                        case  910: if (isFrozen(pVictim)) crit_chance+= 34.0f; break; //Shatter Rank 2
-+                        case  911: if (isFrozen(pVictim)) crit_chance+= 50.0f; break; //Shatter Rank 3
++                        case  849: if (pVictim->isFrozen() || isIgnoreUnitState(spellProto)) crit_chance+= 17.0f; break; //Shatter Rank 1
++                        case  910: if (pVictim->isFrozen() || isIgnoreUnitState(spellProto)) crit_chance+= 34.0f; break; //Shatter Rank 2
++                        case  911: if (pVictim->isFrozen() || isIgnoreUnitState(spellProto)) crit_chance+= 50.0f; break; //Shatter Rank 3
                          case 7917:                          // Glyph of Shadowburn
                              if (pVictim->HasAuraState(AURA_STATE_HEALTHLESS_35_PERCENT))
                                  crit_chance+=(*i)->GetModifier()->m_amount;
- -11083,9 +11083,11 @@ void CharmInfo::SetSpellAutocast( uint32 spell_id, bool state )
+ -12332,3 +12333,28 @@ void Unit::KnockBackFrom(Unit* target, float horizintalSpeed, float verticalSpee
+         NearTeleportTo(fx, fy, fz, GetOrientation(), this == target);
      }
  }
- 
--bool Unit::isFrozen() const
-+bool Unit::isFrozen(Unit *pVictim) const
- {
--    return HasAuraState(AURA_STATE_FROZEN);
-+       if(HasAuraType(SPELL_AURA_FINGERS_OF_FROST) || pVictim->HasAuraState(AURA_STATE_FROZEN)){
-+              return true;
-+       }else return false;
- }
- 
- struct ProcTriggeredData
++bool Unit::isIgnoreUnitState(SpellEntry const *spell)
++{      
++       if(!HasAuraType(SPELL_AURA_IGNORE_UNIT_STATE))
++              return false;
++
++       if(spell->SpellFamilyName == SPELLFAMILY_MAGE){
++              // Ice Lance
++              if(spell->SpellIconID == 186)
++                     return true;
++              // Shatter
++              if(spell->Id == 11170 || spell->Id == 12982 || spell->Id == 12983)
++                     return true;                  
++       }
++       Unit::AuraList const& stateAuras = GetAurasByType(SPELL_AURA_IGNORE_UNIT_STATE);
++    for(Unit::AuraList::const_iterator j = stateAuras.begin();j != stateAuras.end(); ++j)
++       {
++              
++              if((*j)->isAffectedOnSpell(spell))
++              {
++                     return true;
++                     break;
++              }
++       }
++       return false;
++}
 diff --git a/src/game/Unit.h b/src/game/Unit.h
-index 5903ba3..3ebdeab 100644
+index f3f20e2..5dd0066 100644
 --- a/src/game/Unit.h
 +++ b/src/game/Unit.h
- -1106,7 +1106,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
-         bool isInRoots() const { return HasAuraType(SPELL_AURA_MOD_ROOT); }
-         bool IsPolymorphed() const;
+ -1108,6 +1108,8 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
  
--        bool isFrozen() const;
-+        bool isFrozen(Unit *pVictim) const;
+         bool isFrozen() const;
  
++              bool isIgnoreUnitState(SpellEntry const *spell);
++
          void RemoveSpellbyDamageTaken(AuraType auraType, uint32 damage);
+ 
+         bool isTargetableForAttack(bool inversAlive = false) const;
