@@ -1,0 +1,17 @@
+diff --git a/src/game/Unit.cpp b/src/game/Unit.cpp
+index c409046..cded2c9 100644
+--- a/src/game/Unit.cpp
++++ b/src/game/Unit.cpp
+@@ -5269,9 +5269,10 @@ bool Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, Aura* triggeredByAu
+             }
+             switch(dummySpell->Id)
+             {
+-                // Nightfall
+-                case 18094:
++                // Nightfall & Glyph of Corruption
++                case 18094:  
+                  case 18095:
++                case 56218:  
+                 {
+                     target = this;
+                     triggered_spell_id = 17941;
