@@ -29,7 +29,7 @@ index 8bacc46..c342471 100644
  
  void Player::SendUpdateToOutOfRangeGroupMembers()
 diff --git a/src/game/Spell.cpp b/src/game/Spell.cpp
-index 4be1945..140d446 100644
+index 4be1945..a4be12a 100644
 --- a/src/game/Spell.cpp
 +++ b/src/game/Spell.cpp
 @@ -2966,6 +2966,42 @@ void Spell::finish(bool ok)
@@ -89,7 +89,7 @@ index 4be1945..140d446 100644
              return SPELL_FAILED_CASTER_AURASTATE;
      }
 +     //check caster for combat
-+     if(!m_caster->isIgnoreUnitState(m_spellInfo) && m_caster->isInCombat() && IsNonCombatSpell(m_spellInfo))
++     if(m_caster->isInCombat() && IsNonCombatSpell(m_spellInfo) && !m_caster->isIgnoreUnitState(m_spellInfo))
 +        return SPELL_FAILED_AFFECTING_COMBAT;
  
      // cancel autorepeat spells if cast start when moving
@@ -126,7 +126,7 @@ index 3ccdb1e..57e8186 100644
      SPELL_AURA_264 = 264,
      SPELL_AURA_265 = 265,
 diff --git a/src/game/SpellAuras.cpp b/src/game/SpellAuras.cpp
-index 8af7235..5257fe2 100644
+index 8af7235..80661b5 100644
 --- a/src/game/SpellAuras.cpp
 +++ b/src/game/SpellAuras.cpp
 @@ -312,7 +312,7 @@ pAuraHandler AuraHandler[TOTAL_AURAS]=
@@ -134,7 +134,7 @@ index 8af7235..5257fe2 100644
      &Aura::HandleNoImmediateEffect,                         //260 SPELL_AURA_SCREEN_EFFECT (miscvalue = id in ScreenEffect.dbc) not required any code
      &Aura::HandlePhase,                                     //261 SPELL_AURA_PHASE undetectable invisibility?     implemented in Unit::isVisibleForOrDetect
 -    &Aura::HandleNULL,                                      //262 ignore combat/aura state?
-+    &Aura::HandleIgnoreUnitState,                           //262 SPELL_AURA_IGNORE_UNIT_STATE Alows some abilities whitch are aviable only in some cases.... implented in Unit::isIgnoreUnitState & Spell::CheckCast, too
++    &Aura::HandleIgnoreUnitState,                           //262 SPELL_AURA_IGNORE_UNIT_STATE Alows some abilities whitch are aviable only in some cases.... implented in Unit::isIgnoreUnitState & Spell::CheckCast
      &Aura::HandleNULL,                                      //263 SPELL_AURA_ALLOW_ONLY_ABILITY player can use only abilities set in SpellClassMask
      &Aura::HandleUnused,                                    //264 unused (3.0.8a-3.2.2a)
      &Aura::HandleUnused,                                    //265 unused (3.0.8a-3.2.2a)
@@ -192,7 +192,7 @@ index 0695271..a066395 100644
          void HandleAuraModAllCritChance(bool Apply, bool Real);
  
 diff --git a/src/game/SpellEffects.cpp b/src/game/SpellEffects.cpp
-index c25d394..50d776d 100644
+index c25d394..780ba97 100644
 --- a/src/game/SpellEffects.cpp
 +++ b/src/game/SpellEffects.cpp
 @@ -1374,6 +1374,14 @@ void Spell::EffectDummy(uint32 i)
@@ -202,7 +202,7 @@ index c25d394..50d776d 100644
 +
 +                //Juggernaut crit bonus
 +                if(m_caster->HasAura(64976, 0))
-+                    m_caster->CastSpell(m_caster, 65156, true);        
++                    m_caster->CastSpell(m_caster, 65156, true);                                        
 +
 +                //Warbringer - remove movement imparing effects
 +                if(m_caster->HasAura(57499))
@@ -211,44 +211,10 @@ index c25d394..50d776d 100644
              }
              // Execute
 diff --git a/src/game/Unit.cpp b/src/game/Unit.cpp
-index ac5f15d..98833c8 100644
+index ac5f15d..255b564 100644
 --- a/src/game/Unit.cpp
 +++ b/src/game/Unit.cpp
-@@ -7240,6 +7240,33 @@ bool Unit::HandleProcTriggerSpell(Unit *pVictim, uint32 damage, Aura* triggeredB
-             basepoints[0] = int32(GetTotalAttackPowerValue(BASE_ATTACK) * triggerAmount / 100);
-             break;
-         }
-+        //Fingers of Frost
-+        case 44544:
-+        {
-+            if(HasAura(11071) || HasAura(12496) || HasAura(12497))
-+            {
-+                uint32 chance = 100;
-+                switch(auraSpellInfo->Id)
-+                {
-+                    case 44543:            //FoF rank 1
-+                        if(HasAura(11071))   //Frostbite rank 1
-+                            chance -= 71;
-+                        if(HasAura(12496) || HasAura(12497)) //Frostbite rank 2 & 3
-+                            chance -= 100;
-+                        break;
-+                    case 44545:              //FoF rank 2
-+                        if(HasAura(11071))   //Frostbite rank 1
-+                            chance -= 25;
-+                        if(HasAura(12496))   //Frostbite rank 2
-+                            chance -= 75;
-+                        if(HasAura(12497))   //Frostbite rank 3
-+                            chance -= 100;
-+                        break;
-+                }
-+                if (!roll_chance_f(chance) && pVictim && pVictim->isAlive())
-+                    CastSpell(pVictim, 12494, true);  //Cast Frostbite Effect on target...
-+            }
-+        }
-     }
- 
-     if( cooldown && GetTypeId()==TYPEID_PLAYER && ((Player*)this)->HasSpellCooldown(trigger_spell_id))
-@@ -8321,7 +8348,7 @@ uint32 Unit::SpellDamageBonus(Unit *pVictim, SpellEntry const *spellProto, uint3
+@@ -8321,7 +8321,7 @@ uint32 Unit::SpellDamageBonus(Unit *pVictim, SpellEntry const *spellProto, uint3
              // Ice Lance
              if (spellProto->SpellIconID == 186)
              {
@@ -257,7 +223,7 @@ index ac5f15d..98833c8 100644
                  {
                      float multiplier = 3.0f;
  
-@@ -8632,9 +8659,9 @@ bool Unit::isSpellCrit(Unit *pVictim, SpellEntry const *spellProto, SpellSchoolM
+@@ -8632,9 +8632,9 @@ bool Unit::isSpellCrit(Unit *pVictim, SpellEntry const *spellProto, SpellSchoolM
                          continue;
                      switch((*i)->GetModifier()->m_miscvalue)
                      {
@@ -270,7 +236,7 @@ index ac5f15d..98833c8 100644
                          case 7917:                          // Glyph of Shadowburn
                              if (pVictim->HasAuraState(AURA_STATE_HEALTHLESS_35_PERCENT))
                                  crit_chance+=(*i)->GetModifier()->m_amount;
-@@ -12651,3 +12678,27 @@ uint32 Unit::GetCombatRatingDamageReduction(CombatRating cr, float rate, float c
+@@ -12651,3 +12651,27 @@ uint32 Unit::GetCombatRatingDamageReduction(CombatRating cr, float rate, float c
          percent = cap;
      return uint32 (percent * damage / 100.0f);
  }
