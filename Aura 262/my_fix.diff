@@ -1,0 +1,91 @@
+diff --git a/src/game/GridNotifiers.h b/src/game/GridNotifiers.h
+index 92c42ce..06077b1 100644
+--- a/src/game/GridNotifiers.h
++++ b/src/game/GridNotifiers.h
+ -719,7 +719,7 @@ namespace MaNGOS
+             bool operator()(Unit* u)
+             {
+                 if(u->isAlive() && u->isInCombat() && !i_obj->IsHostileTo(u) && i_obj->IsWithinDistInMap(u, i_range) &&
+-                    (u->isFeared() || u->isCharmed() || u->isFrozen() || u->hasUnitState(UNIT_STAT_STUNNED) || u->hasUnitState(UNIT_STAT_CONFUSED)))
++                    (u->isFeared() || u->isCharmed() || u->isFrozen(u) || u->hasUnitState(UNIT_STAT_STUNNED) || u->hasUnitState(UNIT_STAT_CONFUSED)))
+                 {
+                     return true;
+                 }
+diff --git a/src/game/SpellAuraDefines.h b/src/game/SpellAuraDefines.h
+index 602a305..92369dd 100644
+--- a/src/game/SpellAuraDefines.h
++++ b/src/game/SpellAuraDefines.h
+ -304,7 +304,7 @@ enum AuraType
+     SPELL_AURA_259 = 259,
+     SPELL_AURA_SCREEN_EFFECT = 260,
+     SPELL_AURA_PHASE = 261,
+-    SPELL_AURA_262 = 262,
++    SPELL_AURA_FINGERS_OF_FROST = 262,
+     SPELL_AURA_ALLOW_ONLY_ABILITY = 263,
+     SPELL_AURA_264 = 264,
+     SPELL_AURA_265 = 265,
+diff --git a/src/game/SpellAuras.cpp b/src/game/SpellAuras.cpp
+index bbcb5f0..d2ab969 100644
+--- a/src/game/SpellAuras.cpp
++++ b/src/game/SpellAuras.cpp
+ -312,7 +312,7 @@ pAuraHandler AuraHandler[TOTAL_AURAS]=
+     &Aura::HandleNULL,                                      //259 corrupt healing over time spell
+     &Aura::HandleNoImmediateEffect,                         //260 SPELL_AURA_SCREEN_EFFECT (miscvalue = id in ScreenEffect.dbc) not required any code
+     &Aura::HandlePhase,                                     //261 SPELL_AURA_PHASE undetactable invisibility?     implemented in Unit::isVisibleForOrDetect
+-    &Aura::HandleNULL,                                      //262
++    &Aura::HandleNoImmediateEffect,                         //262 SPELL_AURA_FINGERS_OF_FROST implented in Unit:isFrozen(), only one spell - Fingers of Frost
+     &Aura::HandleNULL,                                      //263 SPELL_AURA_ALLOW_ONLY_ABILITY player can use only abilities set in SpellClassMask
+     &Aura::HandleUnused,                                    //264 unused (3.0.8a)
+     &Aura::HandleUnused,                                    //265 unused (3.0.8a)
+diff --git a/src/game/Unit.cpp b/src/game/Unit.cpp
+index 74e8e82..dc30fc2 100644
+--- a/src/game/Unit.cpp
++++ b/src/game/Unit.cpp
+ -8250,7 +8250,7 @@ uint32 Unit::SpellDamageBonus(Unit *pVictim, SpellEntry const *spellProto, uint3
+             // Ice Lance
+             if (spellProto->SpellIconID == 186)
+             {
+-                if (pVictim->isFrozen())
++                if (isFrozen(pVictim))
+                 {
+                     float multiplier = 3.0f;
+ 
+ -8527,9 +8527,9 @@ bool Unit::isSpellCrit(Unit *pVictim, SpellEntry const *spellProto, SpellSchoolM
+                         continue;
+                     switch((*i)->GetModifier()->m_miscvalue)
+                     {
+-                        case  849: if (pVictim->isFrozen()) crit_chance+= 17.0f; break; //Shatter Rank 1
+-                        case  910: if (pVictim->isFrozen()) crit_chance+= 34.0f; break; //Shatter Rank 2
+-                        case  911: if (pVictim->isFrozen()) crit_chance+= 50.0f; break; //Shatter Rank 3
++                        case  849: if (isFrozen(pVictim)) crit_chance+= 17.0f; break; //Shatter Rank 1
++                        case  910: if (isFrozen(pVictim)) crit_chance+= 34.0f; break; //Shatter Rank 2
++                        case  911: if (isFrozen(pVictim)) crit_chance+= 50.0f; break; //Shatter Rank 3
+                         case 7917:                          // Glyph of Shadowburn
+                             if (pVictim->HasAuraState(AURA_STATE_HEALTHLESS_35_PERCENT))
+                                 crit_chance+=(*i)->GetModifier()->m_amount;
+ -11083,9 +11083,11 @@ void CharmInfo::SetSpellAutocast( uint32 spell_id, bool state )
+     }
+ }
+ 
+-bool Unit::isFrozen() const
++bool Unit::isFrozen(Unit *pVictim) const
+ {
+-    return HasAuraState(AURA_STATE_FROZEN);
++       if(HasAuraType(SPELL_AURA_FINGERS_OF_FROST) || pVictim->HasAuraState(AURA_STATE_FROZEN)){
++              return true;
++       }else return false;
+ }
+ 
+ struct ProcTriggeredData
+diff --git a/src/game/Unit.h b/src/game/Unit.h
+index 5903ba3..3ebdeab 100644
+--- a/src/game/Unit.h
++++ b/src/game/Unit.h
+ -1106,7 +1106,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
+         bool isInRoots() const { return HasAuraType(SPELL_AURA_MOD_ROOT); }
+         bool IsPolymorphed() const;
+ 
+-        bool isFrozen() const;
++        bool isFrozen(Unit *pVictim) const;
+ 
+         void RemoveSpellbyDamageTaken(AuraType auraType, uint32 damage);
