@@ -15,4 +15,9 @@ A little bit more complicated patch, but currently every spell with aura 262 wor
  
 === Glyph of Corruption - in 8559 === 
 Simple fix, just add one "case" - this glyph has same effect as Nightfall
+
+== Living bomb - under review ===
+http://getmangos.com/community/showthread.php?t=10858
+*V1
+ - fixes only the final explosion
   
