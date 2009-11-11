@@ -1,24 +1,19 @@
 diff --git a/src/game/Player.cpp b/src/game/Player.cpp
-index bdf6b53..376dccf 100644
+index 296e7f7..69450f8 100644
 --- a/src/game/Player.cpp
 +++ b/src/game/Player.cpp
-@@ -3035,7 +3035,13 @@ bool Player::addSpell(uint32 spell_id, bool active, bool learning, bool dependen
-     else if (IsPassiveSpell(spell_id))
+@@ -18285,7 +18285,8 @@ void Player::SendInitialPacketsAfterAddToMap()
      {
-         if (IsNeedCastPassiveSpellAtLearn(spellInfo))
--            CastSpell(this, spell_id, true);
-+        {
-+            // Juggernaut & Warbringer needs to not be triggered
-+            if(spell_id == 57499 || spell_id == 64976)
-+            {
-+                CastSpell(this, spell_id, false);
-+            }else CastSpell(this, spell_id, true);
-+        }
-     }
-     else if (IsSpellHaveEffect(spellInfo,SPELL_EFFECT_SKILL_STEP))
+         SPELL_AURA_MOD_FEAR,     SPELL_AURA_TRANSFORM,                 SPELL_AURA_WATER_WALK,
+         SPELL_AURA_FEATHER_FALL, SPELL_AURA_HOVER,                     SPELL_AURA_SAFE_FALL,
+-        SPELL_AURA_FLY,          SPELL_AURA_MOD_INCREASE_FLIGHT_SPEED, SPELL_AURA_NONE
++        SPELL_AURA_FLY,          SPELL_AURA_MOD_INCREASE_FLIGHT_SPEED, SPELL_AURA_IGNORE_UNIT_STATE,
++        SPELL_AURA_NONE
+     };
+     for(AuraType const* itr = &auratypes[0]; itr && itr[0] != SPELL_AURA_NONE; ++itr)
      {
 diff --git a/src/game/Spell.cpp b/src/game/Spell.cpp
-index 4be1945..a4be12a 100644
+index 954fffb..0c06b1f 100644
 --- a/src/game/Spell.cpp
 +++ b/src/game/Spell.cpp
 @@ -2966,6 +2966,42 @@ void Spell::finish(bool ok)
@@ -115,7 +110,7 @@ index 3ccdb1e..57e8186 100644
      SPELL_AURA_264 = 264,
      SPELL_AURA_265 = 265,
 diff --git a/src/game/SpellAuras.cpp b/src/game/SpellAuras.cpp
-index 8af7235..beeb800 100644
+index 7f83e7e..e862d85 100644
 --- a/src/game/SpellAuras.cpp
 +++ b/src/game/SpellAuras.cpp
 @@ -312,7 +312,7 @@ pAuraHandler AuraHandler[TOTAL_AURAS]=
@@ -146,7 +141,7 @@ index 8af7235..beeb800 100644
 +                case 44544:
 +                    SetAuraCharges(3); // 3 because first is droped on proc
 +                    break;
-+                // Juggernaut & Warbringer both need special packet
++                // Juggernaut & Warbringer both need special slot and flag
 +                // for alowing charge in combat and Warbringer
 +                // for alowing charge in different stances, too
 +                case 64976:
@@ -175,10 +170,10 @@ index 0695271..a066395 100644
          void HandleAuraModAllCritChance(bool Apply, bool Real);
  
 diff --git a/src/game/SpellEffects.cpp b/src/game/SpellEffects.cpp
-index c25d394..7c1e873 100644
+index 6dd37ae..bd5e17b 100644
 --- a/src/game/SpellEffects.cpp
 +++ b/src/game/SpellEffects.cpp
-@@ -1374,6 +1374,10 @@ void Spell::EffectDummy(uint32 i)
+@@ -1390,6 +1390,10 @@ void Spell::EffectDummy(uint32 i)
              {
                  int32 chargeBasePoints0 = damage;
                  m_caster->CastCustomSpell(m_caster, 34846, &chargeBasePoints0, NULL, NULL, true);
@@ -189,7 +184,7 @@ index c25d394..7c1e873 100644
                  return;
              }
              // Execute
-@@ -1383,6 +1387,17 @@ void Spell::EffectDummy(uint32 i)
+@@ -1399,6 +1403,17 @@ void Spell::EffectDummy(uint32 i)
                      return;
  
                  uint32 rage = m_caster->GetPower(POWER_RAGE);
@@ -207,7 +202,7 @@ index c25d394..7c1e873 100644
                  // Glyph of Execution bonus
                  if (Aura *aura = m_caster->GetDummyAura(58367))
                      rage+=aura->GetModifier()->m_amount;
-@@ -1390,7 +1405,11 @@ void Spell::EffectDummy(uint32 i)
+@@ -1406,7 +1421,11 @@ void Spell::EffectDummy(uint32 i)
                  int32 basePoints0 = damage+int32(rage * m_spellInfo->DmgMultiplier[i] +
                                                   m_caster->GetTotalAttackPowerValue(BASE_ATTACK)*0.2f);
                  m_caster->CastCustomSpell(unitTarget, 20647, &basePoints0, NULL, NULL, true, 0);
@@ -220,7 +215,7 @@ index c25d394..7c1e873 100644
                  return;
              }
              // Slam
-@@ -6243,6 +6262,11 @@ void Spell::EffectCharge(uint32 /*i*/)
+@@ -6259,6 +6278,11 @@ void Spell::EffectCharge(uint32 /*i*/)
      // not all charge effects used in negative spells
      if (unitTarget != m_caster && !IsPositiveSpell(m_spellInfo->Id))
          m_caster->Attack(unitTarget,true);
@@ -233,7 +228,7 @@ index c25d394..7c1e873 100644
  
  void Spell::EffectCharge2(uint32 /*i*/)
 diff --git a/src/game/Unit.cpp b/src/game/Unit.cpp
-index b475706..26ed336 100644
+index 166cbaa..3f71e5e 100644
 --- a/src/game/Unit.cpp
 +++ b/src/game/Unit.cpp
 @@ -8321,7 +8321,7 @@ uint32 Unit::SpellDamageBonus(Unit *pVictim, SpellEntry const *spellProto, uint3
@@ -329,7 +324,7 @@ index b475706..26ed336 100644
 +    return false;
 +}
 diff --git a/src/game/Unit.h b/src/game/Unit.h
-index b481c37..da05b59 100644
+index 619df4a..2e8f0d7 100644
 --- a/src/game/Unit.h
 +++ b/src/game/Unit.h
 @@ -1120,6 +1120,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
