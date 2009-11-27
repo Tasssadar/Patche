@@ -25,4 +25,9 @@ Simple fix, just add one "case" - this glyph has same effect as Nightfall
 http://getmangos.com/community/showthread.php?t=10858
 *V1
  - fixes only the final explosion
-  
+ 
+== Warbringer: remove movement imparing effects - under review ==
+http://getmangos.com/community/showthread.php?t=11205
+
+*V1 - for rev 8878, 27.11.2009
+ - Removes movement imparing effects after charge
