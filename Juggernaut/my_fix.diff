@@ -1,0 +1,15 @@
+diff --git a/src/game/SpellEffects.cpp b/src/game/SpellEffects.cpp
+index 614175b..5625939 100644
+--- a/src/game/SpellEffects.cpp
++++ b/src/game/SpellEffects.cpp
+@@ -1426,6 +1426,10 @@ void Spell::EffectDummy(uint32 i)
+             {
+                 int32 chargeBasePoints0 = damage;
+                 m_caster->CastCustomSpell(m_caster, 34846, &chargeBasePoints0, NULL, NULL, true);
++
++                //Juggernaut crit bonus
++                if(m_caster->HasAura(64976))
++                    m_caster->CastSpell(m_caster, 65156, true);
+                 return;
+             }
+             // Execute
