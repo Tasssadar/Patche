@@ -2,6 +2,9 @@
 http://getmangos.com/community/showthread.php?t=10273
 A little bit more complicated patch, but currently every spell with aura 262 working :)
 
+*V6a - for rev 8896, 30.11.2009
+ - Separated Sudden death rage management
+ - Vanish finally fixed
 *V6 - for rev 8879, 27.11.2009
  - Reverted V5a and V5b, updated for 3.2.2a, some parts separated into another patch.
 *V5b - for rev. 8800, 11.11.2009
