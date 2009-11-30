@@ -1,0 +1,33 @@
+diff --git a/src/game/SpellEffects.cpp b/src/game/SpellEffects.cpp
+index 614175b..957adc3 100644
+--- a/src/game/SpellEffects.cpp
++++ b/src/game/SpellEffects.cpp
+@@ -1435,6 +1435,7 @@ void Spell::EffectDummy(uint32 i)
+                     return;
+ 
+                 uint32 rage = m_caster->GetPower(POWER_RAGE);
++                uint32 lastrage=0;
+ 
+                 // up to max 30 rage cost
+                 if(rage > 30)
+@@ -1450,7 +1451,19 @@ void Spell::EffectDummy(uint32 i)
+                                                  m_caster->GetTotalAttackPowerValue(BASE_ATTACK)*0.2f);
+ 
+                 m_caster->CastCustomSpell(unitTarget, 20647, &basePoints0, NULL, NULL, true, 0);
+-                m_caster->SetPower(POWER_RAGE, m_caster->GetPower(POWER_RAGE)-rage);
++
++                //Sudden Death
++                if(m_caster->HasAura(52437))
++                {
++                    if(m_caster->HasAura(29723)) lastrage=3;
++                    else if (m_caster->HasAura(29725)) lastrage=7;
++                    else if (m_caster->HasAura(29724)) lastrage=10;
++
++                    if(lastrage < rage)
++                        rage -= lastrage;
++                }
++
++                m_caster->SetPower(POWER_RAGE,m_caster->GetPower(POWER_RAGE)-rage);
+                 return;
+             }
+             // Slam
