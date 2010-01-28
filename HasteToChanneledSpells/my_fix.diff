@@ -1,0 +1,150 @@
+diff --git a/src/game/Spell.cpp b/src/game/Spell.cpp
+index 0c80e73..848ebd7 100644
+--- a/src/game/Spell.cpp
++++ b/src/game/Spell.cpp
+@@ -3581,6 +3581,8 @@ void Spell::SendChannelStart(uint32 duration)
+             }
+         }
+     }
++    //Apply haste rating
++    duration = ApplyHasteToChannelSpell(duration, m_spellInfo, this);
+ 
+     WorldPacket data( MSG_CHANNEL_START, (8+4+4) );
+     data.append(m_caster->GetPackGUID());
+diff --git a/src/game/SpellAuras.cpp b/src/game/SpellAuras.cpp
+index 2f7d05f..021e70f 100644
+--- a/src/game/SpellAuras.cpp
++++ b/src/game/SpellAuras.cpp
+@@ -373,7 +373,7 @@ static AuraType const frozenAuraTypes[] = { SPELL_AURA_MOD_ROOT, SPELL_AURA_MOD_
+ 
+ Aura::Aura(SpellEntry const* spellproto, uint32 eff, int32 *currentBasePoints, Unit *target, Unit *caster, Item* castItem) :
+ m_spellmod(NULL), m_caster_guid(0), m_target(target), m_castItemGuid(castItem?castItem->GetGUID():0),
+-m_timeCla(1000), m_periodicTimer(0), m_periodicTick(0), m_removeMode(AURA_REMOVE_BY_DEFAULT), m_AuraDRGroup(DIMINISHING_NONE),
++m_timeCla(1000), m_periodicTimer(0), m_periodicTick(0), m_origDuration(0), m_removeMode(AURA_REMOVE_BY_DEFAULT), m_AuraDRGroup(DIMINISHING_NONE),
+ m_effIndex(eff), m_auraSlot(MAX_AURAS), m_auraFlags(AFLAG_NONE), m_auraLevel(1), m_procCharges(0), m_stackAmount(1),
+ m_positive(false), m_permanent(false), m_isPeriodic(false), m_isAreaAura(false), m_isPersistent(false),
+ m_isRemovedOnShapeLost(true), m_in_use(0), m_deleted(false)
+@@ -435,11 +435,17 @@ m_isRemovedOnShapeLost(true), m_in_use(0), m_deleted(false)
+     if(m_maxduration == -1 || m_isPassive && m_spellProto->DurationIndex == 0)
+         m_permanent = true;
+ 
++    m_origDuration = m_maxduration;
++
+     Player* modOwner = caster ? caster->GetSpellModOwner() : NULL;
+ 
+     if(!m_permanent && modOwner)
+     {
+         modOwner->ApplySpellMod(GetId(), SPELLMOD_DURATION, m_maxduration);
++
++        if(m_spellProto->AttributesEx & (SPELL_ATTR_EX_CHANNELED_1 | SPELL_ATTR_EX_CHANNELED_2) && GetCaster()
++            m_maxduration = int32(m_maxduration * GetCaster()->GetFloatValue(UNIT_MOD_CAST_SPEED));
++
+         // Get zero duration aura after - need set m_maxduration > 0 for apply/remove aura work
+         if (m_maxduration<=0)
+             m_maxduration = 1;
+@@ -456,6 +462,10 @@ m_isRemovedOnShapeLost(true), m_in_use(0), m_deleted(false)
+     if(modOwner && m_modifier.periodictime)
+         modOwner->ApplySpellMod(GetId(), SPELLMOD_ACTIVATION_TIME, m_modifier.periodictime);
+ 
++    //Apply haste to channeled spells
++    if((m_maxduration < m_origDuration || GetSpellProto()->AttributesEx & (SPELL_ATTR_EX_CHANNELED_1 | SPELL_ATTR_EX_CHANNELED_2)) && m_modifier.periodictime != 0)
++        ApplyHasteToPeriodic();
++
+     // Start periodic on next tick or at aura apply
+     if (!(m_spellProto->AttributesEx5 & SPELL_ATTR_EX5_START_PERIODIC_AT_APPLY))
+         m_periodicTimer += m_modifier.periodictime;
+@@ -7865,3 +7875,26 @@ void Aura::HandleAllowOnlyAbility(bool apply, bool Real)
+     m_target->UpdateDamagePhysical(RANGED_ATTACK);
+     m_target->UpdateDamagePhysical(OFF_ATTACK);
+ }
++
++void Aura::ApplyHasteToPeriodic()
++{
++    int32 periodic = m_modifier.periodictime;
++    int32 duration = m_origDuration;
++    if(duration == 0 || periodic == 0)
++        return;
++
++    float ticks = duration / periodic;
++
++    if(!GetCaster())
++        return;
++
++    if( !(GetSpellProto()->Attributes & (SPELL_ATTR_UNK4|SPELL_ATTR_TRADESPELL)) )
++        duration = int32(duration * GetCaster()->GetFloatValue(UNIT_MOD_CAST_SPEED));
++
++    if(m_origDuration - duration != duration)
++    {
++        int32 diff = m_origDuration - duration;
++        diff = int32(diff/ticks);
++        m_modifier.periodictime = periodic-diff;
++    }
++}
+\ No newline at end of file
+diff --git a/src/game/SpellAuras.h b/src/game/SpellAuras.h
+index b11fa5c..3468ae0 100644
+--- a/src/game/SpellAuras.h
++++ b/src/game/SpellAuras.h
+@@ -238,6 +238,8 @@ class MANGOS_DLL_SPEC Aura
+         void SetAuraMaxDuration(int32 duration) { m_maxduration = duration; }
+         int32 GetAuraDuration() const { return m_duration; }
+         void SetAuraDuration(int32 duration) { m_duration = duration; }
++        int32 GetAuraOrigDuration() const { return m_origDuration; }
++        void SetAuraOrigDuration(int32 duration) { m_origDuration = duration; }
+         time_t GetAuraApplyTime() const { return m_applyTime; }
+         uint32 GetAuraTicks() const { return m_periodicTick; }
+         uint32 GetAuraMaxTicks() const { return m_maxduration > 0 && m_modifier.periodictime > 0 ? m_maxduration / m_modifier.periodictime : 0; }
+@@ -350,6 +352,8 @@ class MANGOS_DLL_SPEC Aura
+ 
+         uint32 const *getAuraSpellClassMask() const { return  m_spellProto->GetEffectSpellClassMask(m_effIndex); }
+         bool isAffectedOnSpell(SpellEntry const *spell) const;
++
++        void ApplyHasteToPeriodic();
+     protected:
+         Aura(SpellEntry const* spellproto, uint32 eff, int32 *currentBasePoints, Unit *target, Unit *caster = NULL, Item* castItem = NULL);
+ 
+@@ -378,6 +382,7 @@ class MANGOS_DLL_SPEC Aura
+         int32 m_timeCla;                                    // Timer for power per sec calcultion
+         int32 m_periodicTimer;                              // Timer for periodic auras
+         uint32 m_periodicTick;                              // Tick count pass (including current if use in tick code) from aura apply, used for some tick count dependent aura effects
++        uint32 m_origDuration;                              // Duration before applying haste, etc...
+ 
+         AuraRemoveMode m_removeMode:8;                      // Store info for know remove aura reason
+         DiminishingGroup m_AuraDRGroup:8;                   // Diminishing
+diff --git a/src/game/SpellMgr.cpp b/src/game/SpellMgr.cpp
+index 5a67dd9..136957f 100644
+--- a/src/game/SpellMgr.cpp
++++ b/src/game/SpellMgr.cpp
+@@ -115,7 +115,19 @@ uint16 GetSpellAuraMaxTicks(SpellEntry const* spellInfo)
+ 
+     return 6;
+ }
++int32 ApplyHasteToChannelSpell(int32 orginalDuration, SpellEntry const* spellInfo, Spell const* spell)
++{
++    if (!spell)
++        return orginalDuration;
++
++    if(Player* modOwner = spell->GetCaster()->GetSpellModOwner())
++        modOwner->ApplySpellMod(spellInfo->Id, SPELLMOD_CASTING_TIME, orginalDuration, spell);
+ 
++    if( !(spellInfo->Attributes & (SPELL_ATTR_UNK4|SPELL_ATTR_TRADESPELL)) )
++        orginalDuration = int32(orginalDuration * spell->GetCaster()->GetFloatValue(UNIT_MOD_CAST_SPEED));
++
++    return orginalDuration;
++}
+ WeaponAttackType GetWeaponAttackType(SpellEntry const *spellInfo)
+ {
+     if(!spellInfo)
+diff --git a/src/game/SpellMgr.h b/src/game/SpellMgr.h
+index 741b363..d2c8c61 100644
+--- a/src/game/SpellMgr.h
++++ b/src/game/SpellMgr.h
+@@ -425,6 +425,8 @@ inline uint32 GetDispellMask(DispelType dispel)
+         return (1 << dispel);
+ }
+ 
++int32 ApplyHasteToChannelSpell(int32 orginalDuration, SpellEntry const* spellInfo, Spell const* spell);
++
+ // Diminishing Returns interaction with spells
+ DiminishingGroup GetDiminishingReturnsGroupForSpell(SpellEntry const* spellproto, bool triggered);
+ bool IsDiminishingReturnsGroupDurationLimited(DiminishingGroup group);
