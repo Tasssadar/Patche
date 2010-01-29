@@ -12,7 +12,7 @@ index 0c80e73..848ebd7 100644
      WorldPacket data( MSG_CHANNEL_START, (8+4+4) );
      data.append(m_caster->GetPackGUID());
 diff --git a/src/game/SpellAuras.cpp b/src/game/SpellAuras.cpp
-index 2f7d05f..021e70f 100644
+index 2f7d05f..eea0829 100644
 --- a/src/game/SpellAuras.cpp
 +++ b/src/game/SpellAuras.cpp
 @@ -373,7 +373,7 @@ static AuraType const frozenAuraTypes[] = { SPELL_AURA_MOD_ROOT, SPELL_AURA_MOD_
@@ -24,7 +24,7 @@ index 2f7d05f..021e70f 100644
  m_effIndex(eff), m_auraSlot(MAX_AURAS), m_auraFlags(AFLAG_NONE), m_auraLevel(1), m_procCharges(0), m_stackAmount(1),
  m_positive(false), m_permanent(false), m_isPeriodic(false), m_isAreaAura(false), m_isPersistent(false),
  m_isRemovedOnShapeLost(true), m_in_use(0), m_deleted(false)
-@@ -435,11 +435,17 @@ m_isRemovedOnShapeLost(true), m_in_use(0), m_deleted(false)
+@@ -435,6 +435,8 @@ m_isRemovedOnShapeLost(true), m_in_use(0), m_deleted(false)
      if(m_maxduration == -1 || m_isPassive && m_spellProto->DurationIndex == 0)
          m_permanent = true;
  
@@ -33,27 +33,18 @@ index 2f7d05f..021e70f 100644
      Player* modOwner = caster ? caster->GetSpellModOwner() : NULL;
  
      if(!m_permanent && modOwner)
-     {
-         modOwner->ApplySpellMod(GetId(), SPELLMOD_DURATION, m_maxduration);
-+
-+        if(m_spellProto->AttributesEx & (SPELL_ATTR_EX_CHANNELED_1 | SPELL_ATTR_EX_CHANNELED_2) && GetCaster()
-+            m_maxduration = int32(m_maxduration * GetCaster()->GetFloatValue(UNIT_MOD_CAST_SPEED));
-+
-         // Get zero duration aura after - need set m_maxduration > 0 for apply/remove aura work
-         if (m_maxduration<=0)
-             m_maxduration = 1;
-@@ -456,6 +462,10 @@ m_isRemovedOnShapeLost(true), m_in_use(0), m_deleted(false)
-     if(modOwner && m_modifier.periodictime)
-         modOwner->ApplySpellMod(GetId(), SPELLMOD_ACTIVATION_TIME, m_modifier.periodictime);
+@@ -452,6 +454,10 @@ m_isRemovedOnShapeLost(true), m_in_use(0), m_deleted(false)
+     m_effIndex = eff;
+     SetModifier(AuraType(m_spellProto->EffectApplyAuraName[eff]), damage, m_spellProto->EffectAmplitude[eff], m_spellProto->EffectMiscValue[eff]);
  
 +    //Apply haste to channeled spells
-+    if((m_maxduration < m_origDuration || GetSpellProto()->AttributesEx & (SPELL_ATTR_EX_CHANNELED_1 | SPELL_ATTR_EX_CHANNELED_2)) && m_modifier.periodictime != 0)
++    if(GetSpellProto()->AttributesEx & (SPELL_ATTR_EX_CHANNELED_1 | SPELL_ATTR_EX_CHANNELED_2) && m_modifier.periodictime)
 +        ApplyHasteToPeriodic();
 +
-     // Start periodic on next tick or at aura apply
-     if (!(m_spellProto->AttributesEx5 & SPELL_ATTR_EX5_START_PERIODIC_AT_APPLY))
-         m_periodicTimer += m_modifier.periodictime;
-@@ -7865,3 +7875,26 @@ void Aura::HandleAllowOnlyAbility(bool apply, bool Real)
+     // Apply periodic time mod
+     if(modOwner && m_modifier.periodictime)
+         modOwner->ApplySpellMod(GetId(), SPELLMOD_ACTIVATION_TIME, m_modifier.periodictime);
+@@ -7865,3 +7871,26 @@ void Aura::HandleAllowOnlyAbility(bool apply, bool Real)
      m_target->UpdateDamagePhysical(RANGED_ATTACK);
      m_target->UpdateDamagePhysical(OFF_ATTACK);
  }
@@ -64,8 +55,8 @@ index 2f7d05f..021e70f 100644
 +    int32 duration = m_origDuration;
 +    if(duration == 0 || periodic == 0)
 +        return;
-+
-+    float ticks = duration / periodic;
++    
++    int32 ticks = int32(duration / periodic);
 +
 +    if(!GetCaster())
 +        return;
@@ -73,14 +64,13 @@ index 2f7d05f..021e70f 100644
 +    if( !(GetSpellProto()->Attributes & (SPELL_ATTR_UNK4|SPELL_ATTR_TRADESPELL)) )
 +        duration = int32(duration * GetCaster()->GetFloatValue(UNIT_MOD_CAST_SPEED));
 +
-+    if(m_origDuration - duration != duration)
++    if(m_origDuration != duration)
 +    {
-+        int32 diff = m_origDuration - duration;
-+        diff = int32(diff/ticks);
-+        m_modifier.periodictime = periodic-diff;
++        periodic = int32(periodic * GetCaster()->GetFloatValue(UNIT_MOD_CAST_SPEED));
++        m_modifier.periodictime = periodic;
++        m_maxduration = periodic * ticks;
 +    }
 +}
-\ No newline at end of file
 diff --git a/src/game/SpellAuras.h b/src/game/SpellAuras.h
 index b11fa5c..3468ae0 100644
 --- a/src/game/SpellAuras.h
