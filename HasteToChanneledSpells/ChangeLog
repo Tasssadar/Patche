@@ -1,6 +1,10 @@
 == Apply Haste to channeled spells - Under review ==
 http://getmangos.com/community/showthread.php?12303-%5Bpatch%5D-Apply-haste-rating-to-channeled-spells&p=101913
 
+*V1d - for rev 9605, 19.3.2010
+ - changes by Sarjuuk, thx
+ - move m_duration = m_maxduration; behind ApplyHasteToPeriodic() in aura constructor
+ 
 *V1b - for rev 9262, 29.1.2010
  - More accurate calculating 
  
